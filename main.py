@@ -139,7 +139,8 @@ def add_job():
                 team_leader=int(form.team_leader.data),
                 work_size=form.work_size.data,
                 collaborators=form.collaborators.data,
-                is_finished=form.is_finished.data
+                is_finished=form.is_finished.data,
+                who_created=current_user.id
             )
             db_sess.add(job)
             db_sess.commit()
