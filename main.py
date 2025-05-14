@@ -7,6 +7,9 @@ from data.news import News
 from forms.job import JobForm
 from forms.user import RegisterForm, LoginForm
 from forms.news import NewsForm
+from forms.department import DepartmentForm
+from data.departments import Department
+from sqlalchemy import orm
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'yandexlyceum_secret_key'
@@ -219,6 +222,120 @@ def index():
     except Exception as e:
         print(e)
     db_sess.close()
+
+
+@app.route('/departments')
+def list_departments():
+    db_sess = db_session.create_session()
+    try:
+        departments = db_sess.query(Department).options(
+            orm.joinedload(Department.chief)
+        ).all()
+        return render_template("departments.html",
+                            departments=departments)
+    except Exception as e:
+        print(f"Error: {e}")
+        abort(500)
+    finally:
+        db_sess.close()
+
+
+@app.route('/add_department', methods=['GET', 'POST'])
+@login_required
+def add_department():
+    form = DepartmentForm()
+    if form.validate_on_submit():
+        db_sess = db_session.create_session()
+        try:
+            chief = db_sess.get(User, form.chief_id.data)
+            if not chief:
+                return render_template('add_department.html',
+                                       title='Добавление департамента',
+                                       form=form,
+                                       message="Руководитель не найден")
+
+            department = Department(
+                title=form.title.data,
+                chief_id=form.chief_id.data,
+                members=form.members.data,
+                email=form.email.data,
+                who_created=current_user.id
+            )
+            db_sess.add(department)
+            db_sess.commit()
+            return redirect(url_for('list_departments'))
+        except Exception as e:
+            db_sess.rollback()
+            print(f"Error: {e}")
+            return render_template('add_department.html',
+                                   title='Добавление департамента',
+                                   form=form,
+                                   message="Ошибка при добавлении департамента")
+        finally:
+            db_sess.close()
+
+    return render_template('add_department.html',
+                           title='Добавление департамента',
+                           form=form)
+
+
+@app.route('/edit_department/<int:id>', methods=['GET', 'POST'])
+@login_required
+def edit_department(id):
+    db_sess = db_session.create_session()
+    try:
+        department = db_sess.get(Department, id)  # Используем новый метод get()
+        if not department or (current_user.id != department.chief_id and current_user.id != 1):
+            abort(403)
+
+        form = DepartmentForm()
+        if form.validate_on_submit():
+            # Проверяем существует ли новый руководитель
+            new_chief = db_sess.get(User, form.chief_id.data)
+            if not new_chief:
+                return render_template('add_department.html',
+                                       title='Редактирование департамента',
+                                       form=form,
+                                       message="Руководитель не найден")
+
+            department.title = form.title.data
+            department.chief_id = form.chief_id.data
+            department.members = form.members.data
+            department.email = form.email.data
+            db_sess.commit()
+            return redirect(url_for('list_departments'))
+
+        # Заполняем форму данными из БД (GET запрос)
+        if request.method == 'GET':
+            form.title.data = department.title
+            form.chief_id.data = department.chief_id  # Используем chief_id вместо chief
+            form.members.data = department.members
+            form.email.data = department.email
+
+        return render_template('add_department.html',
+                               title='Редактирование департамента',
+                               form=form)
+    except Exception as e:
+        db_sess.rollback()
+        print(f"Error editing department: {e}")
+        abort(500)
+    finally:
+        db_sess.close()
+
+
+@app.route('/delete_department/<int:id>')
+@login_required
+def delete_department(id):
+    db_sess = db_session.create_session()
+    try:
+        department = db_sess.query(Department).get(id)
+        if not department:
+            abort(404)
+        db_sess.delete(department)
+        db_sess.commit()
+    finally:
+        db_sess.close()
+    return redirect('/departments')
 
 
 if __name__ == '__main__':
