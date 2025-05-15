@@ -10,6 +10,8 @@ from forms.news import NewsForm
 from forms.department import DepartmentForm
 from data.departments import Department
 from sqlalchemy import orm
+from api.users import UsersResource, UsersListResource
+from flask_restful import Api
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'yandexlyceum_secret_key'
@@ -17,6 +19,9 @@ app.config['SECRET_KEY'] = 'yandexlyceum_secret_key'
 login_manager = LoginManager()
 login_manager.init_app(app)
 
+api = Api(app)
+api.add_resource(UsersListResource, '/api/users')
+api.add_resource(UsersResource, '/api/users/<int:user_id>')
 
 @login_manager.user_loader
 def load_user(user_id):
